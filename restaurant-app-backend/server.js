@@ -1,14 +1,15 @@
 const express = require('express');
-const http = require('http');
+const http = require('http'); // <--- Ensure this line is present
 const { Server } = require('socket.io');
 const cors = require('cors');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
-const server = http.createServer(app);
-const io = new Server(server, {
+const server = http.createServer(app); // <--- Ensure this line is present
+const io = new Server(server, {       // <--- Attach Socket.io to the HTTP server
     cors: { origin: "*" }
 });
 
@@ -23,16 +24,13 @@ app.post('/api/orders', (req, res) => {
         id: orders.length + 1,
         tableNumber,
         waiterId,
-        items, // Expected format: [{ name, quantity, modifiers }]
+        items,
         status: 'pending',
         timestamp: new Date()
     };
     
     orders.push(newOrder);
-    
-    // Instantly alert the kitchen screens
     io.emit('kitchen_new_order', newOrder);
-    
     res.status(201).json({ success: true, order: newOrder });
 });
 
@@ -40,15 +38,12 @@ app.post('/api/orders', (req, res) => {
 io.on('connection', (socket) => {
     console.log(`Device connected: ${socket.id}`);
 
-    // Cook updates order status (e.g., from 'pending' to 'ready')
     socket.on('update_order_status', (data) => {
         const { orderId, status } = data;
         const order = orders.find(o => o.id === parseInt(orderId));
         
         if (order) {
             order.status = status;
-            
-            // If the kitchen says food is ready, alert the waiters
             if (status === 'ready') {
                 io.emit('waiter_order_ready', {
                     orderId: order.id,
@@ -56,7 +51,6 @@ io.on('connection', (socket) => {
                     message: `Table ${order.tableNumber}'s food is ready!`
                 });
             }
-            
             io.emit('order_status_synced', order);
         }
     });
@@ -67,4 +61,5 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
+// CRITICAL: Change app.listen to server.listen so both Express and Socket.io run together!
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

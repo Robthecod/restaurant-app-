@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiter Order Pad</title>
+    <!-- Pulls the real-time engine directly from your local server memory -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #ff5722; margin-bottom: 5px; }
+        .table-badge { text-align: center; font-weight: bold; background: #eee; padding: 5px; margin-bottom: 20px; border-radius: 4px; }
+        .btn { display: block; width: 100%; padding: 12px; background: #ff5722; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-weight: bold; margin-bottom: 15px; }
+        .btn-secondary { background: #007bff; }
+        .order-list { border-top: 1px solid #ddd; padding-top: 15px; min-height: 100px; }
+        .order-item { background: #f9f9f9; padding: 10px; margin-bottom: 8px; border-left: 4px solid #ff5722; border-radius: 4px; }
+        .notification { position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 15px; border-radius: 4px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 1000; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="alert-banner" class="notification"></div>
+
+    <div class="container">
+        <h1>Waiter Pad</h1>
+        <div class="table-badge">Active Table: 05</div>
+
+        <button class="btn btn-secondary" onclick="addItem()">+ Add Mock Item (Paneer Tikka)</button>
+
+        <h3>Current Order Items</h3>
+        <div id="order-items-list" class="order-list"></div>
+
+        <button class="btn" onclick="sendOrder()">SEND TO KITCHEN 👨‍🍳</button>
+    </div>
+
+    <script>
+        // Use the current host server origin dynamically
+        const SERVER_URL = window.location.origin;
+        let currentItems = [];
+
+        const socket = io(SERVER_URL);
+
+        // Listen for the real-time notification when food is finished
+        socket.on('waiter_order_ready', (data) => {
+            const banner = document.getElementById('alert-banner');
+            banner.innerText = data.message;
+            banner.style.display = 'block';
+            setTimeout(() => { banner.style.display = 'none'; }, 5000);
+        });
+
+        function addItem() {
+            currentItems.push({
+                name: "Paneer Tikka",
+                quantity: 1,
+                modifiers: "extra spicy"
+            });
+            renderList();
+        }
+
+        function renderList() {
+            const listContainer = document.getElementById('order-items-list');
+            listContainer.innerHTML = '';
+            currentItems.forEach((item) => {
+                listContainer.innerHTML += `
+                    <div class="order-item">
+                        <strong>${item.name}</strong> <br>
+                        <small>Qty: ${item.quantity} | Note: ${item.modifiers}</small>
+                    </div>
+                `;
+            });
+        }
+
+        async function sendOrder() {
+            if (currentItems.length === 0) return alert("Add an item first!");
+
+            try {
+                const response = await fetch(`${SERVER_URL}/api/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tableNumber: 5,
+                        waiterId: 1,
+                        items: currentItems
+                    })
+                });
+
+                if (response.ok) {
+                    currentItems = [];
+                    renderList();
+                    alert("Order successfully sent to kitchen network!");
+                }
+            } catch (error) {
+                alert("Connection failed.");
+            }
+        }
+    </script>
+</body>
+</html>

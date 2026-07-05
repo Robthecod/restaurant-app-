@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Display System (KDS)</title>
+    <!-- Pulls the real-time engine directly from your local server memory -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #222; color: #fff; }
+        h1 { text-align: center; color: #4caf50; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+        .order-card { background: #333; border: 2px solid #444; border-radius: 6px; padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .order-header { display: flex; justify-content: space-between; border-bottom: 1px solid #555; padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; }
+        .table-num { color: #ffeb3b; }
+        .item-row { margin-bottom: 6px; font-size: 15px; }
+        .modifier { color: #ff9800; font-size: 13px; display: block; margin-left: 10px; }
+        .btn-ready { display: block; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        .btn-ready:hover { background: #45a049; }
+        .no-orders { text-align: center; color: #888; margin-top: 5px; font-size: 18px; width: 100%; grid-column: 1 / -1; }
+    </style>
+</head>
+<body>
+
+    <h1>Kitchen Display System (KDS) 👨‍🍳</h1>
+    
+    <div id="kitchen-grid" class="grid">
+        <div id="empty-message" class="no-orders">No active orders. Standing by...</div>
+    </div>
+
+    <script>
+        // Use the current host server origin dynamically
+        const SERVER_URL = window.location.origin;
+        const socket = io(SERVER_URL);
+        const grid = document.getElementById('kitchen-grid');
+
+        // Listen for real-time orders broadcasted by the server
+        socket.on('kitchen_new_order', (order) => {
+            const emptyMessage = document.getElementById('empty-message');
+            if (emptyMessage) emptyMessage.remove();
+
+            let itemsHtml = '';
+            order.items.forEach(item => {
+                itemsHtml += `
+                    <div class="item-row">
+                        • <strong>${item.name}</strong> x ${item.quantity}
+                        <span class="modifier">↳ Note: ${item.modifiers}</span>
+                    </div>
+                `;
+            });
+
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            card.id = `order-card-${order.id}`;
+            card.innerHTML = `
+                <div class="order-header">
+                    <span class="table-num">Table ${order.tableNumber}</span>
+                    <span>#ID-${order.id}</span>
+                </div>
+                <div class="order-body">
+                    ${itemsHtml}
+                </div>
+                <button class="btn-ready" onclick="completeOrder(${order.id})">MARK AS READY ✓</button>
+            `;
+
+            grid.appendChild(card);
+        });
+
+        // Notify the server when the cook finishes the items
+        function completeOrder(orderId) {
+            socket.emit('update_order_status', { orderId: orderId, status: 'ready' });
+            
+            const card = document.getElementById(`order-card-${orderId}`);
+            if (card) card.remove();
+            
+            // Put placeholder text back if the screen becomes empty
+            if (grid.children.length === 0) {
+                grid.innerHTML = '<div id="empty-message" class="no-orders">No active orders. Standing by...</div>';
+            }
+        }
+    </script>
+</body>
+</html>
